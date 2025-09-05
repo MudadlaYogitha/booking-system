@@ -10,7 +10,7 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { SuccessPage } from './pages/SuccessPage';
-
+import { MockCheckoutPage } from './pages/MockCheckoutPage';
 function App() {
   return (
     <Router>
@@ -25,6 +25,7 @@ function App() {
           <Route path="/book/:trainerId" element={<BookingPage />} />
           <Route path="/student-dashboard" element={<StudentDashboard />} />
           <Route path="/trainer-dashboard" element={<TrainerDashboard />} />
+          <Route path="/mock-checkout" element={<MockCheckoutPage />} />
         </Routes>
       </div>
     </Router>

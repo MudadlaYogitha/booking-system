@@ -12,15 +12,24 @@ interface CheckoutSessionResponse {
   url: string;
 }
 
-// Map friendly keys to real Stripe Price IDs (replace values with your real price IDs)
 const PRICE_MAP: Record<string, string> = {
   training_session: 'price_1S2qB1EiAibFBvoA9ecHRy8o',
   hiregenius_monthly: 'price_1S2qB1EiAibFBvoA9ecHRy8x'
 };
 
+const USE_FAKE = import.meta.env.VITE_USE_FAKE_PAYMENT === 'true';
+
 export const createCheckoutSession = async (
   params: CreateCheckoutSessionParams
 ): Promise<CheckoutSessionResponse> => {
+  // If fake/demo payments are enabled, return a mock checkout URL that links to an in-app page
+  if (USE_FAKE) {
+    const mockSessionId = `mock_${Date.now()}`;
+    // We rely on pendingBooking stored by the frontend (PaymentBookingForm) to get booking details.
+    const url = `${window.location.origin}/mock-checkout?sessionId=${encodeURIComponent(mockSessionId)}`;
+    return Promise.resolve({ sessionId: mockSessionId, url });
+  }
+
   const apiUrl =
     (import.meta.env.VITE_STRIPE_FUNC_URL as string) ||
     'https://lserzybsvugwnvhmszal.supabase.co/functions/v1/stripe-checkout';
