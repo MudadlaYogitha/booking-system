@@ -1,11 +1,8 @@
-// src/pages/MockCheckoutPage.tsx
 import React, { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2, Check, CreditCard } from 'lucide-react';
-import { storage } from '../utils/storage';
+import { updateBookingPaymentStatus } from '../lib/database.ts';
 import { trainersData } from '../data/trainers';
-
-/* ---------- helpers ---------- */
 
 function luhnCheck(num: string) {
   let sum = 0;
@@ -36,9 +33,7 @@ function detectBrand(cardNumber: string) {
 
 function formatCardNumberForDisplay(input: string) {
   const digits = normalizeCardNumber(input);
-  // group by 4 except AMEX (4-6-5)
   if (/^3[47]/.test(digits)) {
-    // AMEX 4-6-5
     const part1 = digits.slice(0, 4);
     const part2 = digits.slice(4, 10);
     const part3 = digits.slice(10, 15);
@@ -47,11 +42,6 @@ function formatCardNumberForDisplay(input: string) {
   return digits.replace(/(\d{4})/g, '$1 ').trim();
 }
 
-/**
- * expiryInput formatting:
- * - Accepts partial typing and auto-inserts slash after 2 digits.
- * - Stores formatted string like "02/34" or partial like "02/3".
- */
 function formatExpiryInput(raw: string) {
   const digits = raw.replace(/\D/g, '');
   if (digits.length === 0) return '';
@@ -65,7 +55,6 @@ function expiryDigitsCount(formatted: string) {
   return (formatted.replace(/\D/g, '') || '').length;
 }
 
-/** returns true if expiry formatted as MM/YY and not past */
 function isExpiryValid(formatted: string) {
   const digits = (formatted || '').replace(/\D/g, '');
   if (digits.length !== 4) return false;
@@ -79,8 +68,6 @@ function isExpiryValid(formatted: string) {
   return lastOfMonth >= now;
 }
 
-/* ---------- component ---------- */
-
 export const MockCheckoutPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -91,13 +78,11 @@ export const MockCheckoutPage: React.FC = () => {
   const trainer = pending ? trainersData.find(t => t.id === pending.trainerId) : null;
 
   const [cardNumber, setCardNumber] = useState('');
-  const [expiry, setExpiry] = useState(''); // displayed as "MM/YY" or partial
+  const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [cardholder, setCardholder] = useState(pending?.studentName ?? '');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-
-  // errors keyed by field
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!pending) {
@@ -113,16 +98,12 @@ export const MockCheckoutPage: React.FC = () => {
   }
 
   const handleCardNumberChange = (raw: string) => {
-    // maintain spaces for display, but store raw digits for validation
     const formatted = formatCardNumberForDisplay(raw);
     setCardNumber(formatted);
-    // clear card number error proactively
     setErrors(prev => ({ ...prev, cardNumber: '' }));
   };
 
   const handleExpiryChange = (raw: string) => {
-    // auto-format to MM/YY as user types
-    // allow backspace and partial input
     const formatted = formatExpiryInput(raw);
     setExpiry(formatted);
     setErrors(prev => ({ ...prev, expiry: '' }));
@@ -139,42 +120,38 @@ export const MockCheckoutPage: React.FC = () => {
   const handleDemoQuickPay = async () => {
     setLoading(true);
     await new Promise(r => setTimeout(r, 700));
-    if (pending) {
-      const booking = {
-        id: sessionId,
-        trainerId: pending.trainerId,
-        studentName: pending.studentName,
-        studentEmail: pending.studentEmail,
-        message: pending.message,
-        createdAt: new Date().toISOString()
-      };
-      storage.saveBooking(booking);
+    
+    try {
+      // Update payment status in database
+      if (pending.bookingId) {
+        await updateBookingPaymentStatus(pending.bookingId, 'completed');
+      }
       localStorage.removeItem('pendingBooking');
+      setLoading(false);
+      setDone(true);
+      setTimeout(() => navigate(`/success?bookingId=${pending.bookingId}&trainer=${pending.trainerId}`), 700);
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      setLoading(false);
+      navigate(`/success?bookingId=${pending.bookingId}&trainer=${pending.trainerId}`);
     }
-    setLoading(false);
-    setDone(true);
-    setTimeout(() => navigate(`/success?booking=true&sessionId=${encodeURIComponent(sessionId)}`), 700);
   };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
     const rawNumber = normalizeCardNumber(cardNumber);
 
-    // card number: must be 13-19 digits and pass Luhn
     if (!/^\d{13,19}$/.test(rawNumber) || !luhnCheck(rawNumber)) {
       newErrors.cardNumber = 'Your card number is invalid.';
     }
 
-    // expiry: show explicit "incomplete" message when digits < 4
     const expDigits = expiryDigitsCount(expiry);
     if (expDigits < 4) {
-      newErrors.expiry = "Your card’s expiration date is incomplete.";
+      newErrors.expiry = "Your card's expiration date is incomplete.";
     } else if (!isExpiryValid(expiry)) {
       newErrors.expiry = 'Expiry date is invalid or in the past.';
     }
 
-    // cvc
-    // AMEX uses 4, others 3
     const brand = detectBrand(rawNumber);
     const cvcOk = brand === 'AMEX' ? /^\d{4}$/.test(cvc) : /^\d{3}$/.test(cvc);
     if (!cvcOk) {
@@ -193,21 +170,21 @@ export const MockCheckoutPage: React.FC = () => {
     if (!validate()) return;
     setLoading(true);
     await new Promise(r => setTimeout(r, 900));
-    if (pending) {
-      const booking = {
-        id: sessionId,
-        trainerId: pending.trainerId,
-        studentName: pending.studentName,
-        studentEmail: pending.studentEmail,
-        message: pending.message,
-        createdAt: new Date().toISOString()
-      };
-      storage.saveBooking(booking);
+    
+    try {
+      // Update payment status in database
+      if (pending.bookingId) {
+        await updateBookingPaymentStatus(pending.bookingId, 'completed');
+      }
       localStorage.removeItem('pendingBooking');
+      setLoading(false);
+      setDone(true);
+      setTimeout(() => navigate(`/success?bookingId=${pending.bookingId}&trainer=${pending.trainerId}`), 700);
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      setLoading(false);
+      navigate(`/success?bookingId=${pending.bookingId}&trainer=${pending.trainerId}`);
     }
-    setLoading(false);
-    setDone(true);
-    setTimeout(() => navigate(`/success?booking=true&sessionId=${encodeURIComponent(sessionId)}`), 700);
   };
 
   const rawNumber = normalizeCardNumber(cardNumber);
@@ -239,7 +216,6 @@ export const MockCheckoutPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Card number */}
       <div className="mb-3">
         <label className="text-sm font-medium block mb-1">Card number</label>
         <div className="flex items-center gap-2">
@@ -260,7 +236,6 @@ export const MockCheckoutPage: React.FC = () => {
         )}
       </div>
 
-      {/* Expiry / CVC / Name */}
       <div className="grid grid-cols-3 gap-3 mb-3">
         <div>
           <label className="text-sm font-medium block mb-1">Expiry (MM/YY)</label>

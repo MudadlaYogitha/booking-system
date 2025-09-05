@@ -15,11 +15,13 @@ export interface Trainer {
 export interface Booking {
   id: string;
   trainerId: string;
+  studentId: string; // Added for better user management
   studentName: string;
   studentEmail: string;
   createdAt: string;
   message?: string;
-  sessionId?: string;
+  sessionId?: string; // Links to a session when one is created
+  paymentStatus?: 'pending' | 'completed' | 'failed'; // Track payment status
 }
 
 export interface Session {
@@ -31,13 +33,27 @@ export interface Session {
   scheduledAt: string;
   duration: number;
   meetingLink: string;
-  studentIds: string[];
-  status: 'scheduled' | 'active' | 'completed';
+  studentIds: string[]; // Array of booking IDs that are part of this session
+  status: 'scheduled' | 'active' | 'completed' | 'cancelled';
   createdAt: string;
+  maxStudents?: number; // Maximum students allowed (default: no limit)
+  minStudents?: number; // Minimum students required (default: 5)
 }
 
 export interface Student {
   id: string;
   name: string;
   email: string;
+}
+
+// New interface for session management
+export interface SessionWithBookings extends Session {
+  bookings: Booking[];
+  trainer: Trainer;
+}
+
+// Enhanced booking interface for display purposes
+export interface BookingWithDetails extends Booking {
+  trainer?: Trainer;
+  session?: Session;
 }

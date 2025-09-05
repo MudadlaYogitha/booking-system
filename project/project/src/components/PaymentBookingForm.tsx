@@ -5,6 +5,7 @@ import { User, Mail, MessageSquare, CreditCard } from 'lucide-react';
 import { Trainer } from '../types';
 import { supabase } from '../lib/supabase';
 import { createCheckoutSession } from '../lib/stripe';
+import { storage } from '../utils/storage';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface PaymentBookingFormProps {
@@ -113,16 +114,17 @@ export const PaymentBookingForm: React.FC<PaymentBookingFormProps> = ({ trainer 
 
       if (!sessionResp || !sessionResp.url) throw new Error('Failed to create checkout session.');
 
-      localStorage.setItem(
-        'pendingBooking',
-        JSON.stringify({
-          trainerId: trainer.id,
-          studentName: formData.studentName,
-          studentEmail: formData.studentEmail,
-          message: formData.message,
-          timestamp: Date.now()
-        })
-      );
+      // Store booking data with user ID for session management
+      const bookingData = {
+        trainerId: trainer.id,
+        studentId: user.id,
+        studentName: formData.studentName,
+        studentEmail: formData.studentEmail,
+        message: formData.message,
+        timestamp: Date.now()
+      };
+
+      localStorage.setItem('pendingBooking', JSON.stringify(bookingData));
 
       window.location.href = sessionResp.url;
     } catch (err: any) {
